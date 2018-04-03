@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: AWS CloudWatch ELK Logging Solution
+
+Parameters:
+  DomainName:
+    Description: Name for the Amazon ES Domain.
+    Type: String
+    Default: cloudwatch-logs
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Elasticsearch Configuration
+      Parameters:
+      - DomainName
+    ParameterLabels:
+      DomainName:
+        default: Domain Name
+
+# Mappings:
+
+Resources:
+  #
+  # Elasticsearch Resources
+  # [CloudWatchLogsElasticsearch]
+  #
+  CloudWatchLogsElasticsearch:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      DomainName: !Ref DomainName
+      ElasticsearchVersion: 6.2
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: true
+        InstanceCount: 2
+        ZoneAwarenessEnabled: true
+        InstanceType: r4.large.elasticsearch
+        DedicatedMasterType: t2.small.elasticsearch
+        DedicatedMasterCount: 3
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 20
+        VolumeType: gp2
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: "*"
+          Action:
+          - es:*
+          Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: true
+
+  #
+  # Log Delivery Resources
+  # [CloudWatchLogsArchive, CloudWatchLogstreamerRole, CloudWatchLogstreamer]
+  #
+  CloudWatchLogsArchive:
+    Type: AWS::S3::Bucket
+    # DeletionPolicy: Retain
+
+  CloudWatchLogstreamerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: firehose-logstreamer-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - firehose.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: firehose-logstreamer-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:AbortMultipartUpload
+            - s3:GeBucketLocation
+            - s3:GetObject
+            - s3:ListBucket
+            - s3:ListBucketMultipartUploads
+            - s3:PutObject
+            Resource:
+            - !Sub arn:aws:s3:::${CloudWatchLogsArchive}
+            - !Sub arn:aws:s3:::${CloudWatchLogsArchive}/*
+          - Effect: Allow
+            Action:
+            - logs:Create*
+            - logs:Put*
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/*:log-stream:*
+          - Effect: Allow
+            Action:
+            - es:ESHttp*
+            - es:Describe*
+            Resource:
+            - !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
+
+  CloudWatchLogstreamer:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: cloudwatch-logstreamer
+      ElasticsearchDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
+          LogStreamName: elasticsearch-delivery
+        DomainArn: !GetAtt CloudWatchLogsElasticsearch.DomainArn
+        IndexName: cwlogs
+        IndexRotationPeriod: OneDay
+        RetryOptions:
+          DurationInSeconds: 60
+        RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketArn: !Sub arn:aws:s3:::${CloudWatchLogsArchive}
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 50
+          CloudWatchLoggingOptions:
+            Enabled: true
+            LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
+            LogStreamName: s3backup
+          CompressionFormat: UNCOMPRESSED
+          Prefix: firehose/
+          RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
+        TypeName: cwlogs

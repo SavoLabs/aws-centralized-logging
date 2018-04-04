@@ -64,11 +64,29 @@ Resources:
 
   #
   # Log Streaming Resources
-  # [CloudWatchLogsArchive, CloudWatchLogstreamerRole, CloudWatchLogstreamer]
+  # [CloudWatchLogsArchive, CloudwatchLogstreamerLogGroup, CloudwatchLogstreamerS3Stream, CloudWatchLogstreamerRole, CloudwatchLogstreamerESStream, CloudWatchLogstreamer]
   #
   CloudWatchLogsArchive:
     Type: AWS::S3::Bucket
     # DeletionPolicy: Retain
+
+  CloudwatchLogstreamerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
+      RetentionInDays: 30
+
+  CloudwatchLogstreamerS3Stream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref CloudwatchLogstreamerLogGroup
+      LogStreamName: s3backup
+
+  CloudwatchLogstreamerESStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref CloudwatchLogstreamerLogGroup
+      LogStreamName: elasticsearch-delivery
 
   CloudWatchLogstreamerRole:
     Type: AWS::IAM::Role
@@ -142,7 +160,7 @@ Resources:
             LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
             LogStreamName: s3backup
           CompressionFormat: UNCOMPRESSED
-          Prefix: firehose/
+          Prefix: cloudwatch-logs/
           RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
         TypeName: cwlogs
 

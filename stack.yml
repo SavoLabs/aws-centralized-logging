@@ -58,7 +58,7 @@ Resources:
         rest.action.multi.allow_explicit_index: true
 
   #
-  # Log Delivery Resources
+  # Log Streaming Resources
   # [CloudWatchLogsArchive, CloudWatchLogstreamerRole, CloudWatchLogstreamer]
   #
   CloudWatchLogsArchive:
@@ -76,7 +76,8 @@ Resources:
           Principal:
             Service:
             - firehose.amazonaws.com
-          Action: sts:AssumeRole
+          Action:
+          - sts:AssumeRole
       Path: /
       Policies:
       - PolicyName: firehose-logstreamer-policy
@@ -118,15 +119,16 @@ Resources:
           Enabled: true
           LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
           LogStreamName: elasticsearch-delivery
-        DomainArn: !GetAtt CloudWatchLogsElasticsearch.DomainArn
+        DomainARN: !GetAtt CloudWatchLogsElasticsearch.DomainArn
         IndexName: cwlogs
         IndexRotationPeriod: OneDay
+        # ProcessingConfiguration:
         RetryOptions:
           DurationInSeconds: 60
         RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
         S3BackupMode: AllDocuments
         S3Configuration:
-          BucketArn: !Sub arn:aws:s3:::${CloudWatchLogsArchive}
+          BucketARN: !Sub arn:aws:s3:::${CloudWatchLogsArchive}
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 50
@@ -138,3 +140,42 @@ Resources:
           Prefix: firehose/
           RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
         TypeName: cwlogs
+
+  #
+  # Log Dump Resources
+  # [CloudWatchLogDumpRole, CloudWatchLogDumpPolicy]
+  #
+  CloudWatchLogDumpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cloudwatch-dump-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - !Sub logs.${AWS::Region}.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+
+  CloudWatchLogDumpPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: cloudwatch-dump-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - firehose:*
+          Resource:
+          - !GetAtt CloudWatchLogstreamer.Arn
+        - Effect: Allow
+          Action:
+          - iam:PassRole
+          Resource:
+          - !GetAtt CloudWatchLogDumpRole.Arn
+      Roles:
+      - Ref: CloudWatchLogDumpRole

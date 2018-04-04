@@ -24,9 +24,9 @@ Metadata:
 Resources:
   #
   # Elasticsearch Resources
-  # [CloudWatchLogsElasticsearch]
+  # [LogsCluster]
   #
-  CloudWatchLogsElasticsearch:
+  LogsCluster:
     Type: AWS::Elasticsearch::Domain
     Properties:
       DomainName: !Ref DomainName
@@ -64,31 +64,31 @@ Resources:
 
   #
   # Log Streaming Resources
-  # [CloudWatchLogsArchive, CloudwatchLogstreamerLogGroup, CloudwatchLogstreamerS3Stream, CloudWatchLogstreamerRole, CloudwatchLogstreamerESStream, CloudWatchLogstreamer]
+  # [LogsArchive, LogstreamerLogGroup, LogstreamerS3Stream, LogstreamerESStream, LogstreamerRole, Logstreamer]
   #
-  CloudWatchLogsArchive:
+  LogsArchive:
     Type: AWS::S3::Bucket
     # DeletionPolicy: Retain
 
-  CloudwatchLogstreamerLogGroup:
+  LogstreamerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
       RetentionInDays: 30
 
-  CloudwatchLogstreamerS3Stream:
+  LogstreamerS3Stream:
     Type: AWS::Logs::LogStream
     Properties:
-      LogGroupName: !Ref CloudwatchLogstreamerLogGroup
+      LogGroupName: !Ref LogstreamerLogGroup
       LogStreamName: s3backup
 
-  CloudwatchLogstreamerESStream:
+  LogstreamerESStream:
     Type: AWS::Logs::LogStream
     Properties:
-      LogGroupName: !Ref CloudwatchLogstreamerLogGroup
+      LogGroupName: !Ref LogstreamerLogGroup
       LogStreamName: elasticsearch-delivery
 
-  CloudWatchLogstreamerRole:
+  LogstreamerRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: firehose-logstreamer-role
@@ -116,8 +116,8 @@ Resources:
             - s3:ListBucketMultipartUploads
             - s3:PutObject
             Resource:
-            - !Sub arn:aws:s3:::${CloudWatchLogsArchive}
-            - !Sub arn:aws:s3:::${CloudWatchLogsArchive}/*
+            - !Sub arn:aws:s3:::${LogsArchive}
+            - !Sub arn:aws:s3:::${LogsArchive}/*
           - Effect: Allow
             Action:
             - logs:Create*
@@ -130,7 +130,7 @@ Resources:
             Resource:
             - !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
 
-  CloudWatchLogstreamer:
+  Logstreamer:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
       DeliveryStreamName: cloudwatch-logstreamer
@@ -142,16 +142,16 @@ Resources:
           Enabled: true
           LogGroupName: /aws/kinesisfirehose/cloudwatch-logstreamer
           LogStreamName: elasticsearch-delivery
-        DomainARN: !GetAtt CloudWatchLogsElasticsearch.DomainArn
+        DomainARN: !GetAtt LogsCluster.DomainArn
         IndexName: cwlogs
         IndexRotationPeriod: OneDay
         # ProcessingConfiguration:
         RetryOptions:
           DurationInSeconds: 60
-        RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
+        RoleARN: !GetAtt LogstreamerRole.Arn
         S3BackupMode: AllDocuments
         S3Configuration:
-          BucketARN: !Sub arn:aws:s3:::${CloudWatchLogsArchive}
+          BucketARN: !Sub arn:aws:s3:::${LogsArchive}
           BufferingHints:
             IntervalInSeconds: 60
             SizeInMBs: 50
@@ -161,17 +161,17 @@ Resources:
             LogStreamName: s3backup
           CompressionFormat: UNCOMPRESSED
           Prefix: cloudwatch-logs/
-          RoleARN: !GetAtt CloudWatchLogstreamerRole.Arn
+          RoleARN: !GetAtt LogstreamerRole.Arn
         TypeName: cwlogs
 
   #
-  # Log Dump Resources
-  # [CloudWatchLogDumpRole, CloudWatchLogDumpPolicy]
+  # Log Put Resources
+  # [LogPutRole, LogPutPolicy]
   #
-  CloudWatchLogDumpRole:
+  LogPutRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: cloudwatch-dump-role
+      RoleName: cloudwatch-put-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -183,10 +183,10 @@ Resources:
           - sts:AssumeRole
       Path: /
 
-  CloudWatchLogDumpPolicy:
+  LogPutPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: cloudwatch-dump-policy
+      PolicyName: cloudwatch-put-policy
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -194,11 +194,11 @@ Resources:
           Action:
           - firehose:*
           Resource:
-          - !GetAtt CloudWatchLogstreamer.Arn
+          - !GetAtt Logstreamer.Arn
         - Effect: Allow
           Action:
           - iam:PassRole
           Resource:
-          - !GetAtt CloudWatchLogDumpRole.Arn
+          - !GetAtt LogPutRole.Arn
       Roles:
-      - Ref: CloudWatchLogDumpRole
+      - Ref: LogPutRole

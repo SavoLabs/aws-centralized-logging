@@ -202,3 +202,11 @@ Resources:
           - !GetAtt LogPutRole.Arn
       Roles:
       - Ref: LogPutRole
+
+Outputs:
+  ClusterArn:
+    Description: The ARN of the Elasticsearch cluster.
+    Value: !GetAtt LogsCluster.DomainArn
+  ClusterEndpoint:
+    Description: The endpoint of the Elasticsearch cluster.
+    Value: !GetAtt LogsCluster.DomainEndpoint

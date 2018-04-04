@@ -53,6 +53,11 @@ Resources:
             AWS: "*"
           Action:
           - es:*
+          Condition:
+            IpAddress:
+              aws:SourceIp:
+              - 144.121.162.240/30
+              - 4.14.170.240/29
           Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/*
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: true

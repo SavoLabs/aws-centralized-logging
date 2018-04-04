@@ -205,5 +205,11 @@ Resources:
 
 Outputs:
   KibanaURL:
-    Description: The endpoint of the Elasticsearch cluster.
+    Description: Kibana dashboard URL
     Value: !Sub http://${LogsCluster.DomainEndpoint}/_plugin/kibana/
+  Logstreamer:
+    Description: The ARN for the Kinesis Firehose
+    Value: !GetAtt Logstreamer.Arn
+  LogPutRole:
+    Description: IAM role granting CloudWatch Logs access to Kinesis Firehose
+    Value: !GetAtt LogPutRole.Arn

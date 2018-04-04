@@ -204,9 +204,6 @@ Resources:
       - Ref: LogPutRole
 
 Outputs:
-  ClusterArn:
-    Description: The ARN of the Elasticsearch cluster.
-    Value: !GetAtt LogsCluster.DomainArn
-  ClusterEndpoint:
+  KibanaURL:
     Description: The endpoint of the Elasticsearch cluster.
-    Value: !GetAtt LogsCluster.DomainEndpoint
+    Value: !Sub http://${LogsCluster.DomainEndpoint}/_plugin/kibana/
